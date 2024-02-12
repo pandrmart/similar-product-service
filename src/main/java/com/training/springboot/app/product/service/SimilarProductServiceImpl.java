@@ -27,7 +27,8 @@ public class SimilarProductServiceImpl implements ISimilarProductService {
 	@Autowired
 	private ProductRestClient productRestClient;
 
-	private Map<String, List<ProductDetail>> cache = new HashMap<>();
+	private Map<String, List<String>> similarProductCache = new HashMap<>();
+	private Map<String, ProductDetail> productCache = new HashMap<>();
 
 	private Logger logger = LoggerFactory.getLogger(SimilarProductServiceImpl.class);
 
@@ -40,11 +41,14 @@ public class SimilarProductServiceImpl implements ISimilarProductService {
 		logger.info(String.format("Getting similar products for product id: %s", productId));
 
 		List<String> similarProductIds = productRestClient.findSimilarProductIds(productId);
+		similarProductCache.put(productId, similarProductIds);
 
 		List<ProductDetail> productDetailList = similarProductIds.stream().map(similarProductId -> {
 			try {
 				logger.debug(String.format("Getting product by id: %s", similarProductId));
-				return productRestClient.findById(similarProductId);
+				ProductDetail productDetail = productRestClient.findById(similarProductId);
+				productCache.put(similarProductId, productDetail);
+				return productDetail;
 			} catch (Exception e) {
 				logger.error(e.getMessage());
 			}
@@ -52,8 +56,6 @@ public class SimilarProductServiceImpl implements ISimilarProductService {
 		})
 		.filter(Objects::nonNull)
 		.collect(Collectors.toList());
-
-		cache.put(productId, productDetailList);
 
 		return productDetailList;
 	}
@@ -63,7 +65,15 @@ public class SimilarProductServiceImpl implements ISimilarProductService {
 	 */
 	@Override
 	public List<ProductDetail> findSimilarProductsFromCache(String productId) {
-		return cache.containsKey(productId) ? cache.get(productId) : new ArrayList<>();
+		List<ProductDetail> similarProducts = new ArrayList<>();
+		if (similarProductCache.containsKey(productId)) {
+			for (String similarProductId : similarProductCache.get(productId)) {
+				if (productCache.containsKey(similarProductId)) {
+					similarProducts.add(productCache.get(similarProductId));
+				}
+			}
+		}
+		return similarProducts;
 	}
 
 }
